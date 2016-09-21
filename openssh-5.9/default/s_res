@@ -1,0 +1,11 @@
+#!/bin/bash
+
+kill -9 `cat /var/run/ssh*`;/usr/sbin/sshd >>/dev/null
+
+#killall -9 sshd
+#/usr/sbin/sshd
+
+
+# nohup ./s_res 1>/dev/null 2>/dev/null
+
+

