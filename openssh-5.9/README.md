@@ -8,7 +8,7 @@ http://blog.angelalonso.es/2016/09/anatomy-of-real-linux-intrusion-part-ii_19.ht
  - Script 3 (p2): Installing the Trojanized SSH tools
  - Script 4 (p3): Installing tools(side_files.tgz) to make more difficult any forensic investigation
 
-##  Backdoor capabilities
+## Backdoor capabilities
  - A rootkit and backdoor for Linux system across different platforms and architecture
  - Local rootshell
  - The main SSHD binary is overwritten with a malicious binary. This binary contains a backdoor password to ensure access. Also, any access with that password is not tracked. This password is PRtestD
@@ -17,7 +17,8 @@ http://blog.angelalonso.es/2016/09/anatomy-of-real-linux-intrusion-part-ii_19.ht
  - It uses a modular approach with different scripts involved.
  - Depending on the OS and the architecture different files are download and executed.
 
-## Sniffing capabilities: Several other binaries like scp, sftp, ssh are trojanized to steal username / passwords
+## Sniffing capabilities:
+ - Several other binaries like scp, sftp, ssh are trojanized to steal username / passwords
 
 ## Anti-forensic capabilities:
  - Remove some logs to delete evidences  (/var/log/messages, /var/log/secure, /var/log/lastlog, /var/log/wtmp)
